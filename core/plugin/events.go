@@ -16,12 +16,12 @@ func MakeEvent(name string, fn *lua.LFunction) *Event {
 	return &event
 }
 
-func (event *Event) Fire(state *lua.LState, args ...lua.LValue) {
-	state.CallByParam(
+func (event *Event) Fire(state *lua.LState, args ...lua.LValue) error {
+	return state.CallByParam(
 		lua.P{
 			Fn:      event.Fn,
 			NRet:    0,
-			Protect: false,
+			Protect: true,
 		},
 		args...,
 	)

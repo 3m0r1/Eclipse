@@ -68,30 +68,29 @@ func (mgr *PluginManager) InitImports(targetPlugin *plugin.Plugin, imports *lua.
 	state.ForEach(imports, func(key, value lua.LValue) {
 		entry := value.(*lua.LTable)
 
-		pluginName := lua.LVAsString(state.GetField(
+		pluginName := plugin.GetStringOrPanic(
+			state,
 			entry,
 			"Plugin",
-		))
+			"Couldn't find plugin name",
+		)
 
-		procName := lua.LVAsString(state.GetField(
+		procName := plugin.GetStringOrPanic(
+			state,
 			entry,
 			"Procedure",
-		))
+			"Couldn't find proceedure name",
+		)
 
-		foundPlugin, exists := mgr.GetPlugin(pluginName)
-
-		if !exists {
-			return
+		if foundPlugin, ok := mgr.GetPlugin(pluginName); ok {
+			if cmd, ok := foundPlugin.GetCommand(procName); ok {
+				if cmd.Export {
+					imp := plugin.MakeImport(foundPlugin, cmd)
+					targetPlugin.AddImport(pluginName, procName, imp)
+				}
+			}
 		}
 
-		cmd := foundPlugin.GetCommand(procName)
-
-		if cmd == nil {
-			return
-		}
-
-		imp := plugin.MakeImport(foundPlugin, cmd)
-		targetPlugin.AddImport(pluginName, procName, imp)
 	})
 }
 
@@ -99,17 +98,24 @@ func (mgr *PluginManager) SetPluginsImports() {
 	for _, plugin := range mgr.Plugins {
 		mgr.InitImports(
 			plugin,
-			plugin.State.GetField(plugin.Environment.Plugin, "Imports").(*lua.LTable),
+			plugin.State.GetField(
+				plugin.Environment.Plugin, "Imports",
+			).(*lua.LTable),
 		)
 	}
 }
 
 func (mgr *PluginManager) LoadPlugins(plugins ...*plugin.Plugin) error {
-	for _, p := range plugins {
-		if err := mgr.LoadPlugin(p); err != nil {
+	for _, plugin := range plugins {
+		if err := mgr.LoadPlugin(plugin); err != nil {
 			return err
 		}
 	}
 	mgr.SetPluginsImports()
+
+	for _, plugin := range plugins {
+		plugin.FireEvent("OnReady")
+	}
+
 	return nil
 }

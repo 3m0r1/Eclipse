@@ -1,9 +1,13 @@
 function OnLoad()
-    print('Loading terminal plugin')
+    print('Loading utils plugin')
 end
 
 function OnUnload()
-    print('unloading terminal plugin')
+    print('Unloading utils plugin')
+end
+
+function OnReady()
+    print('Utils plugin is ready')
 end
 
 return {
@@ -17,6 +21,7 @@ return {
     Events = {
         OnLoad = OnLoad,
         OnUnload = OnUnload,
+        OnReady = OnReady
     },
 
     Commands = {
@@ -35,7 +40,7 @@ return {
             Return = true, -- are there return(s)?
             Export = true, -- make it importable by other plugin(s)?
 
-            -- ctx is the caller (itself or other plugins)
+            -- ctx refers to the local plugin (most of the time) commands are invoked
             Run = function(ctx, args)
                 local msg = 'Hello ' .. args[1]
                 return { msg }

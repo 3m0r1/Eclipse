@@ -6,8 +6,19 @@ function OnUnload()
     print('Unloading basic plugin')
 end
 
-function OnCustom()
-    print('calling custom event')
+function GetLocalPlugin()
+    return _G.Plugin
+end
+
+function OnReady()
+    print('Basic plugin is ready')
+    local plugin = GetLocalPlugin()
+
+    -- you can now call imports safely
+    local res = plugin.Imports.HelloMessage(plugin.Metadata.Name)
+    local msg = res[1]
+
+    print('[OnReady] HelloMessage:', msg)
 end
 
 return {
@@ -21,8 +32,7 @@ return {
     Events = {
         OnLoad = OnLoad,
         OnUnload = OnUnload,
-
-        OnCustom = OnCustom
+        OnReady = OnReady
     },
 
     Commands = {
@@ -40,10 +50,11 @@ return {
             Return = false, -- are there return(s)?
             Export = false, -- make it importable by other plugin(s)?
 
-            -- ctx is the caller (itself or other plugins)
+           -- ctx refers to the local plugin (most of the time) commands are invoked
             Run = function(ctx, args)
                 local res = ctx.Imports.HelloMessage(args[1])
-                print('Returned Message: ' .. res[1])
+                local msg = res[1]
+                print('[Greet] HelloMessage:', msg)
             end
         }
     },

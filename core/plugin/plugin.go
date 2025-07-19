@@ -1,6 +1,8 @@
 package plugin
 
 import (
+	"errors"
+
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -38,29 +40,50 @@ func NewPlugin(path string) *Plugin {
 	return &plugin
 }
 
-func (plugin *Plugin) AddEvent(name string, event *Event) {
-	plugin.Events[name] = event
+func (plugin *Plugin) GetEvent(name string) (*Event, bool) {
+	event, exists := plugin.Events[name]
+	return event, exists
 }
 
-func (plugin *Plugin) FireEvent(name string, args ...lua.LValue) {
-	event := plugin.Events[name]
-	event.Fire(
-		plugin.State,
-		args...,
-	)
-}
+func (plugin *Plugin) AddEvent(name string, event *Event) error {
+	_, exists := plugin.GetEvent(name)
 
-func (plugin *Plugin) GetCommand(name string) *Command {
-	for _, cmd := range plugin.Commands {
-		if cmd.Name == name {
-			return cmd
-		}
+	if exists {
+		return errors.New("event already exists")
 	}
 
+	plugin.Events[name] = event
 	return nil
 }
-func (plugin *Plugin) AddCommand(name string, command *Command) {
+
+func (plugin *Plugin) FireEvent(name string, args ...lua.LValue) error {
+	event, ok := plugin.Events[name]
+
+	if !ok {
+		return errors.New("event doesn't exist")
+	} else {
+		event.Fire(
+			plugin.State,
+			args...,
+		)
+		return nil
+	}
+}
+
+func (plugin *Plugin) GetCommand(name string) (*Command, bool) {
+	command, exists := plugin.Commands[name]
+	return command, exists
+}
+
+func (plugin *Plugin) AddCommand(name string, command *Command) error {
+	_, exists := plugin.GetCommand(name)
+
+	if exists {
+		return errors.New("command already exists")
+	}
+
 	plugin.Commands[name] = command
+	return nil
 }
 
 func (plugin *Plugin) InvokeCommandCtx(name string, ctx lua.LValue, args ...lua.LValue) (*lua.LTable, error) {
@@ -93,73 +116,115 @@ func (plugin *Plugin) SetPluginGlobal(pluginRet *lua.LTable) {
 
 func (plugin *Plugin) Init() {
 	state := plugin.State
+
 	pluginReturn := state.ToTable(-1)
 	state.Pop(1)
 
 	plugin.SetPluginGlobal(pluginReturn)
 
-	metadata := state.GetField(
+	metadata := GetTableOrPanic(
+		state,
 		pluginReturn,
 		"Metadata",
+		"Couldn't find metadata table",
 	)
 
-	events := state.GetField(
+	events := GetTableOrPanic(
+		state,
 		pluginReturn,
 		"Events",
+		"Couldn't find events table",
 	)
 
-	commands := state.GetField(
+	commands := GetTableOrPanic(
+		state,
 		pluginReturn,
 		"Commands",
+		"Couldn't find commands table",
 	)
 
-	name := lua.LVAsString(state.GetField(
+	imports := GetTableOrPanic(
+		state,
+		pluginReturn,
+		"Imports",
+		"Couldn't find imports table",
+	)
+
+	name := GetStringOrPanic(
+		state,
 		metadata,
 		"Name",
-	))
+		"Couldn't find plugin name",
+	)
 
-	description := lua.LVAsString(state.GetField(
+	description := GetStringOr(
+		state,
 		metadata,
 		"Description",
-	))
+		"N/A",
+	)
 
-	author := lua.LVAsString(state.GetField(
+	author := GetStringOr(
+		state,
 		metadata,
 		"Author",
-	))
+		"N/A",
+	)
 
-	version := lua.LVAsString(state.GetField(
+	version := GetStringOr(
+		state,
 		metadata,
 		"Version",
-	))
+		"N/A",
+	)
 
 	plugin.Info.Name = name
 	plugin.Info.Description = description
 	plugin.Info.Author = author
 	plugin.Info.Version = version
 
-	state.ForEach(events.(*lua.LTable), func(key, value lua.LValue) {
-		name := lua.LVAsString(key)
-		fn := value.(*lua.LFunction)
+	state.ForEach(events, func(key, value lua.LValue) {
+		eventName := lua.LVAsString(key)
+		eventFn := value.(*lua.LFunction)
 
-		event := MakeEvent(name, fn)
-		plugin.AddEvent(name, event)
+		event := MakeEvent(eventName, eventFn)
+		plugin.AddEvent(eventName, event)
 	})
 
-	state.ForEach(commands.(*lua.LTable), func(key, value lua.LValue) {
-		name := lua.LVAsString(key)
-		entry := value.(*lua.LTable)
+	state.ForEach(commands, func(key, value lua.LValue) {
+		cmdName := lua.LVAsString(key)
+		cmdEntry := value.(*lua.LTable)
 
-		cmd := MakeCommand(state, name, entry)
-		plugin.AddCommand(name, cmd)
+		cmd := MakeCommand(state, cmdName, cmdEntry)
+		plugin.AddCommand(cmdName, cmd)
+	})
+
+	state.ForEach(imports, func(key, value lua.LValue) {
+		importEntry := value.(*lua.LTable)
+		MakeCallableTable(
+			state,
+			importEntry,
+			plugin.CallImport,
+		)
 	})
 }
 
 func (plugin *Plugin) CallImport(state *lua.LState) int {
 	importTbl := state.ToTable(1)
 
-	pluginName := lua.LVAsString(state.GetField(importTbl, "Plugin"))
-	procName := lua.LVAsString(state.GetField(importTbl, "Procedure"))
+	pluginName := GetStringOrPanic(
+		state,
+		importTbl,
+		"Plugin",
+		"Couldn't find plugin name",
+	)
+
+	procName := GetStringOrPanic(
+		state,
+		importTbl,
+		"Procedure",
+		"Couldn't find procedure name",
+	)
 
 	var args []lua.LValue
 
@@ -178,27 +243,18 @@ func (plugin *Plugin) CallImport(state *lua.LState) int {
 
 	return 1
 }
-func (plugin *Plugin) SetImportsMetatable() {
-	state := plugin.State
 
-	imports := state.GetField(
-		plugin.Environment.Plugin,
-		"Imports",
-	)
+func (plugin *Plugin) Load() error {
+	err := plugin.State.DoFile(plugin.Info.Path)
 
-	state.ForEach(imports.(*lua.LTable), func(key, value lua.LValue) {
-		entry := value.(*lua.LTable)
+	if err != nil {
+		return err
+	}
 
-		mt := state.NewTable()
-		state.SetField(mt, "__call", state.NewFunction(plugin.CallImport))
-		state.SetMetatable(entry, mt)
-	})
-}
-func (plugin *Plugin) Load() {
-	plugin.State.DoFile(plugin.Info.Path)
 	plugin.Init()
-	plugin.SetImportsMetatable()
 	plugin.FireEvent("OnLoad")
+
+	return nil
 }
 
 func (plugin *Plugin) Unload() {

@@ -28,14 +28,47 @@ type Command struct {
 }
 
 func MakeCommand(state *lua.LState, name string, entry *lua.LTable) *Command {
-	description := lua.LVAsString(state.GetField(entry, "Description"))
-	use := lua.LVAsString(state.GetField(entry, "Use"))
+	description := GetStringOr(
+		state,
+		entry,
+		"Description",
+		"N/A",
+	)
 
-	strict := bool(lua.LVAsBool(state.GetField(entry, "Strict")))
-	ret := bool(lua.LVAsBool(state.GetField(entry, "Return")))
-	export := bool(lua.LVAsBool(state.GetField(entry, "Export")))
+	use := GetStringOr(
+		state,
+		entry,
+		"Use",
+		"N/A",
+	)
 
-	runFn := state.GetField(entry, "Run").(*lua.LFunction)
+	strict := GetBoolOr(
+		state,
+		entry,
+		"Strict",
+		false,
+	)
+
+	ret := GetBoolOr(
+		state,
+		entry,
+		"Return",
+		false,
+	)
+
+	export := GetBoolOr(
+		state,
+		entry,
+		"Export",
+		false,
+	)
+
+	runFn := GetFunctionOrPanic(
+		state,
+		entry,
+		"Run",
+		"Couldn't find run function",
+	)
 
 	cmd := Command{
 		Name:        name,
@@ -48,17 +81,37 @@ func MakeCommand(state *lua.LState, name string, entry *lua.LTable) *Command {
 		Args:        []*Argument{},
 	}
 
-	luaArgs := state.GetField(entry, "Args").(*lua.LTable)
+	luaArgs := GetTableOrPanic(
+		state,
+		entry,
+		"Args",
+		"Couldn't find arguments table",
+	)
 
 	luaArgs.ForEach(func(key, value lua.LValue) {
 		cmd.ArgCount++
 
 		luaArg := value.(*lua.LTable)
 
-		name := state.GetField(luaArg, "Name").String()
-		defaultVal := state.GetField(luaArg, "Default")
+		name := GetStringOr(
+			state,
+			luaArg,
+			"Name",
+			"N/A",
+		)
 
-		optional := bool(lua.LVAsBool(state.GetField(luaArg, "Optional")))
+		defaultVal := GetField(
+			state,
+			luaArg,
+			"Default",
+		)
+
+		optional := GetBoolOr(
+			state,
+			luaArg,
+			"Optional",
+			false,
+		)
 
 		if !optional {
 			cmd.RequiredArgCount++
@@ -115,7 +168,7 @@ func (cmd *Command) Invoke(state *lua.LState, ctx lua.LValue, args ...lua.LValue
 			lua.P{
 				Fn:      cmd.RunFn,
 				NRet:    1,
-				Protect: false,
+				Protect: true,
 			},
 			ctx,
 			argsTbl,
@@ -128,7 +181,7 @@ func (cmd *Command) Invoke(state *lua.LState, ctx lua.LValue, args ...lua.LValue
 			lua.P{
 				Fn:      cmd.RunFn,
 				NRet:    0,
-				Protect: false,
+				Protect: true,
 			},
 			ctx,
 			argsTbl,
