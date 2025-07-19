@@ -31,15 +31,15 @@ basicPlugin.InvokeCommand("Greet", lua.LString("World"))
 Plugin:
 ```lua
 function OnLoad()
-    print('Loading basic plugin')
+    print('Loading greet plugin')
 end
 
 function OnUnload()
-    print('Unloading basic plugin')
+    print('Unloading greet plugin')
 end
 
 function OnReady()
-    print('Basic plugin is ready')
+    print('greet plugin is ready')
 end
 
 return {
@@ -77,7 +77,8 @@ return {
             end
         }
     },
-	Imports = { }
+
+    Imports = { }
 }
 
 ```
