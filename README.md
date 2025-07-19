@@ -38,19 +38,8 @@ function OnUnload()
     print('Unloading basic plugin')
 end
 
-function GetLocalPlugin()
-    return _G.Plugin
-end
-
 function OnReady()
     print('Basic plugin is ready')
-    local plugin = GetLocalPlugin()
-
-    -- you can now call imports safely
-    local res = plugin.Imports.HelloMessage(plugin.Metadata.Name)
-    local msg = res[1]
-
-    print('[OnReady] HelloMessage:', msg)
 end
 
 return {
