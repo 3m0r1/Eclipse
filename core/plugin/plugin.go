@@ -23,6 +23,7 @@ type Plugin struct {
 	Events      map[string]*Event
 	Commands    map[string]*Command
 	Imports     map[string]map[string]*Import
+	Exports     map[string]*Export
 	Environment *Environment
 	State       *lua.LState
 }
@@ -33,10 +34,10 @@ func NewPlugin(path string) *Plugin {
 		Events:      map[string]*Event{},
 		Commands:    map[string]*Command{},
 		Imports:     map[string]map[string]*Import{},
+		Exports:     map[string]*Export{},
 		Environment: &Environment{},
 		State:       lua.NewState(),
 	}
-
 	return &plugin
 }
 
@@ -46,28 +47,20 @@ func (plugin *Plugin) GetEvent(name string) (*Event, bool) {
 }
 
 func (plugin *Plugin) AddEvent(name string, event *Event) error {
-	_, exists := plugin.GetEvent(name)
-
-	if exists {
+	if _, exists := plugin.GetEvent(name); exists {
 		return errors.New("event already exists")
 	}
-
 	plugin.Events[name] = event
 	return nil
 }
 
 func (plugin *Plugin) FireEvent(name string, args ...lua.LValue) error {
 	event, ok := plugin.Events[name]
-
 	if !ok {
 		return errors.New("event doesn't exist")
-	} else {
-		event.Fire(
-			plugin.State,
-			args...,
-		)
-		return nil
 	}
+
+	return event.Fire(plugin.State, args...)
 }
 
 func (plugin *Plugin) GetCommand(name string) (*Command, bool) {
@@ -75,42 +68,78 @@ func (plugin *Plugin) GetCommand(name string) (*Command, bool) {
 	return command, exists
 }
 
-func (plugin *Plugin) AddCommand(name string, command *Command) error {
-	_, exists := plugin.GetCommand(name)
+func (plugin *Plugin) GetExport(name string) (*Export, bool) {
+	export, exists := plugin.Exports[name]
+	return export, exists
+}
 
-	if exists {
+func (plugin *Plugin) AddCommand(name string, command *Command) error {
+	if _, exists := plugin.GetCommand(name); exists {
 		return errors.New("command already exists")
 	}
-
 	plugin.Commands[name] = command
+
+	if command.Export {
+		if _, exists := plugin.GetExport(name); exists {
+			return errors.New("export already exists")
+		}
+		plugin.Exports[name] = (*Export)(command)
+	}
+
 	return nil
 }
 
 func (plugin *Plugin) InvokeCommandCtx(name string, ctx lua.LValue, args ...lua.LValue) (*lua.LTable, error) {
-	cmd := plugin.Commands[name]
+	cmd, exists := plugin.GetCommand(name)
+	if !exists {
+		return nil, errors.New("command doesn't exist")
+	}
+
 	return cmd.Invoke(plugin.State, ctx, args...)
 }
 
 func (plugin *Plugin) InvokeCommand(name string, args ...lua.LValue) (*lua.LTable, error) {
-	cmd := plugin.Commands[name]
 	ctx := plugin.Environment.Plugin
-	return cmd.Invoke(plugin.State, ctx, args...)
+	return plugin.InvokeCommandCtx(name, ctx, args...)
 }
 
-func (plugin *Plugin) AddImport(name, proc string, imp *Import) {
-	_, ok := plugin.Imports[name]
+func (plugin *Plugin) GetImportTable(name string) (map[string]*Import, bool) {
+	table, exists := plugin.Imports[name]
+	return table, exists
+}
 
-	if !ok {
-		plugin.Imports[name] = map[string]*Import{}
+func (plugin *Plugin) InitImportTable(name string) error {
+	if _, exists := plugin.GetImportTable(name); exists {
+		return errors.New("import table already exists")
 	}
+	plugin.Imports[name] = make(map[string]*Import)
+	return nil
+}
 
-	plugin.Imports[name][proc] = imp
+func (plugin *Plugin) GetImport(name, proc string) (*Import, bool) {
+	table, exists := plugin.GetImportTable(name)
+	if !exists {
+		return nil, false
+	}
+	imp, exists := table[proc]
+	if !exists {
+		return nil, false
+	}
+	return imp, true
+}
+
+func (plugin *Plugin) AddImport(name, proc string, imp *Import) error {
+	table, exists := plugin.GetImportTable(name)
+	if !exists {
+		return errors.New("import table doesn't exist")
+	}
+	table[proc] = imp
+	return nil
 }
 
 func (plugin *Plugin) SetPluginGlobal(pluginRet *lua.LTable) {
 	state := plugin.State
 	plugin.Environment.Plugin = pluginRet
-
 	state.SetField(state.G.Global, "Plugin", pluginRet)
 }
 
@@ -188,6 +217,7 @@ func (plugin *Plugin) Init() {
 		eventFn := value.(*lua.LFunction)
 
 		event := MakeEvent(eventName, eventFn)
+		// TODO: handle error from AddEvent
 		plugin.AddEvent(eventName, event)
 	})
 
@@ -196,6 +226,7 @@ func (plugin *Plugin) Init() {
 		cmdEntry := value.(*lua.LTable)
 
 		cmd := MakeCommand(state, cmdName, cmdEntry)
+		// TODO: handle error from AddCommand
 		plugin.AddCommand(cmdName, cmd)
 	})
 
@@ -227,37 +258,36 @@ func (plugin *Plugin) CallImport(state *lua.LState) int {
 	)
 
 	var args []lua.LValue
-
 	top := state.GetTop()
-
 	for i := 2; i <= top; i++ {
 		args = append(args, state.Get(i))
 	}
 
-	for _, imp := range plugin.Imports[pluginName] {
-		if imp.Command.Name == procName {
-			ret, _ := imp.Command.Invoke(imp.Plugin.State, imp.Plugin.Environment.Plugin, args...)
-			plugin.State.Push(ret)
-		}
+	if imp, exists := plugin.GetImport(pluginName, procName); exists {
+		ret, _ := imp.Command.Invoke(
+			imp.Plugin.State,
+			imp.Plugin.Environment.Plugin,
+			args...,
+		)
+		plugin.State.Push(ret)
+		return 1
+	} else {
+		return 0
 	}
-
-	return 1
 }
 
 func (plugin *Plugin) Load() error {
-	err := plugin.State.DoFile(plugin.Info.Path)
-
-	if err != nil {
+	if err := plugin.State.DoFile(plugin.Info.Path); err != nil {
 		return err
 	}
 
 	plugin.Init()
-	plugin.FireEvent("OnLoad")
 
-	return nil
+	return plugin.FireEvent("OnLoad")
 }
 
-func (plugin *Plugin) Unload() {
-	plugin.FireEvent("OnUnload")
+func (plugin *Plugin) Unload() error {
+	err := plugin.FireEvent("OnUnload")
 	plugin.State.Close()
+	return err
 }

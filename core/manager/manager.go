@@ -32,7 +32,9 @@ func (mgr *PluginManager) GetPlugin(name string) (*plugin.Plugin, bool) {
 }
 
 func (mgr *PluginManager) LoadPlugin(plugin *plugin.Plugin) error {
-	plugin.Load()
+	if err := plugin.Load(); err != nil {
+		return err
+	}
 
 	_, exists := mgr.GetPlugin(plugin.Info.Name)
 
@@ -83,11 +85,11 @@ func (mgr *PluginManager) InitImports(targetPlugin *plugin.Plugin, imports *lua.
 		)
 
 		if foundPlugin, ok := mgr.GetPlugin(pluginName); ok {
-			if cmd, ok := foundPlugin.GetCommand(procName); ok {
-				if cmd.Export {
-					imp := plugin.MakeImport(foundPlugin, cmd)
-					targetPlugin.AddImport(pluginName, procName, imp)
-				}
+			targetPlugin.InitImportTable(pluginName)
+
+			if export, ok := foundPlugin.GetExport(procName); ok {
+				imp := plugin.MakeImport(foundPlugin, (*plugin.Command)(export))
+				targetPlugin.AddImport(pluginName, procName, imp)
 			}
 		}
 
@@ -114,7 +116,7 @@ func (mgr *PluginManager) LoadPlugins(plugins ...*plugin.Plugin) error {
 	mgr.SetPluginsImports()
 
 	for _, plugin := range plugins {
-		plugin.FireEvent("OnReady")
+		plugin.FireEvent("OnReady", plugin.Environment.Plugin)
 	}
 
 	return nil

@@ -45,6 +45,31 @@ return {
                 local msg = 'Hello ' .. args[1]
                 return { msg }
             end
+        },
+
+         Add = {
+            Description = 'Adds two numbers together',
+            Use = 'Add [number1] [number2]',
+            Args = {
+                {
+                    Name = 'number1',
+                    Optional = false,
+                },
+                {
+                    Name = 'number2',
+                    Optional = false,
+                }
+            },
+
+            Strict = true, -- allow only the exact number of argsument(s)?
+            Return = true, -- are there return(s)?
+            Export = true, -- make it importable by other plugin(s)?
+
+            -- ctx refers to the local plugin (most of the time) commands are invoked
+            Run = function(ctx, args)
+                local result = args[1] + args[2]
+                return { result }
+            end
         }
     },
 

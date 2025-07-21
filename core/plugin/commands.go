@@ -27,6 +27,8 @@ type Command struct {
 	RunFn            *lua.LFunction
 }
 
+type Export Command
+
 func MakeCommand(state *lua.LState, name string, entry *lua.LTable) *Command {
 	description := GetStringOr(
 		state,
@@ -136,7 +138,7 @@ func (cmd *Command) Invoke(state *lua.LState, ctx lua.LValue, args ...lua.LValue
 	}
 
 	if cmd.Strict {
-		if cmd.ArgCount < len(args) {
+		if cmd.ArgCount != len(args) {
 			return nil, errors.New("amount of arguments more than expected")
 		}
 	}
