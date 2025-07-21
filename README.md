@@ -2,6 +2,7 @@
 # Eclipse
 
 Lua plugin manager in Go.
+
 <img width="1532" height="1132" alt="Eclipse" src="https://github.com/user-attachments/assets/90e2ebdb-79b0-4dc4-952c-064aee5f66f5" />
 
 ## Background
