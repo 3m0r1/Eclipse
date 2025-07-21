@@ -17,7 +17,6 @@ Eclipse focuses on 4 main components when it comes to plugin design:
 
 Eclipse was designed for the [Abyss C2 Framework](https://github.com/AbyssFramework).
 
-
 ## Example
 
 Manager:
@@ -82,8 +81,8 @@ return {
 
     Imports = { }
 }
-
 ```
+For more details, check out the [Plugins](https://github.com/3m0r1/Eclipse/tree/main/plugins/) folder.
 
 ## Usage
 ```
