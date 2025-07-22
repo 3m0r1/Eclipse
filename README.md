@@ -3,6 +3,8 @@
 
 An extensible Lua plugin manager in Go.
 
+<img width="1531" height="1131" alt="eclipse" src="https://github.com/user-attachments/assets/674fac4d-f187-44e1-8132-2a77c4e32d22" />
+
 ## Background
 Eclipse started out as a way to interpret lua plugins as efficiently as possible to allow for dynamic behavior for systems like C2s, where extensibility matters alot.
 
