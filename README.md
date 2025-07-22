@@ -1,22 +1,36 @@
 
 # Eclipse
 
-Lua plugin manager in Go.
-
-<img width="1532" height="1132" alt="Eclipse" src="https://github.com/user-attachments/assets/90e2ebdb-79b0-4dc4-952c-064aee5f66f5" />
+An extensible Lua plugin manager in Go.
 
 ## Background
 Eclipse started out as a way to interpret lua plugins as efficiently as possible to allow for dynamic behavior for systems like C2s, where extensibility matters alot.
 
-Eclipse focuses on 4 main components when it comes to plugin design:
+It focuses on 4 main components when it comes to plugin design:
 
 - Events
 - Commands
 - Imports
 - Exports
 
-Eclipse was designed for the [Abyss C2 Framework](https://github.com/AbyssFramework).
+It was designed for the [Abyss C2 Framework](https://github.com/AbyssFramework).
 
+## Features
+
+#### Events
+- Lifecycle events (``OnLoad``, ``OnUnload``, ``OnReady``)
+- Custom events
+
+#### Commands
+- Variadiac & optional arguments
+- Strict mode
+- Variadiac returns
+
+#### Imports
+- Clean syntax using ``__call`` metamethod
+
+#### Exports
+- Ability to export commands with the ``Export`` field
 ## Example
 
 Manager:
@@ -88,3 +102,9 @@ For more details, check out the [Plugins](https://github.com/3m0r1/Eclipse/tree/
 ```
 ./eclipse [plugins]
 ```
+
+## Resources
+These resources were crucial during the development of Eclipse.
+
+- [GopherLua](https://github.com/yuin/gopher-lua)
+- [Metatables & Metamethods](https://www.lua.org/pil/13.html)
