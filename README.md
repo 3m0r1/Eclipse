@@ -55,7 +55,7 @@ function OnUnload()
     print('Unloading greet plugin')
 end
 
-function OnReady()
+function OnReady(plugin)
     print('greet plugin is ready')
 end
 
