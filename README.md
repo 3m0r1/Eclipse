@@ -1,7 +1,7 @@
 
 # Eclipse
 
-An extensible Lua plugin manager in Go.
+A Lua scripting environment tailored for complex plugin systems.
 
 <img width="1531" height="1131" alt="eclipse" src="https://github.com/user-attachments/assets/674fac4d-f187-44e1-8132-2a77c4e32d22" />
 
